@@ -31,6 +31,7 @@ type LeveldbStore struct {
 	db *leveldb.DB
 }
 
+// 创建leveldb 的底层存储来实现 tus.Store 接口
 func NewLeveldbStore(path string) (tus.Store, error) {
 	db, err := leveldb.OpenFile(path, nil)
 	if err != nil {
@@ -66,6 +67,7 @@ func GetDir(dir string) []string {
 	return getDir(dir)
 }
 
+// 返回dir下非目录文件的完整列表
 func getDir(dir string) []string {
 	var (
 		paths []string
@@ -79,6 +81,7 @@ func getDir(dir string) []string {
 	return paths
 }
 
+// worker 协程
 func sendFile() {
 
 	for {
@@ -86,6 +89,7 @@ func sendFile() {
 			return
 		}
 		filePath := <-queue
+		// 路径检查
 		if strings.Index(*Url, "/big/upload") > 0 {
 			bigUpload(filePath)
 		} else {
@@ -96,6 +100,7 @@ func sendFile() {
 
 }
 
+// 将文件post到指定URL
 func normalUpload(filePath string) {
 	defer func() {
 		if re := recover(); re != nil {
@@ -119,6 +124,7 @@ func normalUpload(filePath string) {
 
 }
 
+// 断点续传实现
 func bigUpload(filePath string) {
 	defer func() {
 		if re := recover(); re != nil {
@@ -131,6 +137,7 @@ func bigUpload(filePath string) {
 	}
 	defer f.Close()
 	cfg := tus.DefaultConfig()
+	// 要实现断点续传先创建store实例,并写入配置
 	//cfg.Store=store
 	//cfg.Resume=true
 	client, err := tus.NewClient(*Url, cfg)

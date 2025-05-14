@@ -116,6 +116,7 @@ func (c *Server) RepairFileInfoFromFile() {
 	log.Info("RepairFileInfoFromFile is finish.")
 }
 
+// 重新读取数据库指定日期的文件数量和大小，对统计数据进行修复
 func (c *Server) RepairStatByDate(date string) StatDateFileInfo {
 	defer func() {
 		if re := recover(); re != nil {
@@ -133,6 +134,8 @@ func (c *Server) RepairStatByDate(date string) StatDateFileInfo {
 		fileSize  int64
 		stat      StatDateFileInfo
 	)
+
+	// 构建iter数据库查询
 	keyPrefix = "%s_%s_"
 	keyPrefix = fmt.Sprintf(keyPrefix, date, CONST_FILE_Md5_FILE_NAME)
 	iter := server.logDB.NewIterator(util.BytesPrefix([]byte(keyPrefix)), nil)
@@ -162,7 +165,9 @@ func (c *Server) RepairStatByDate(date string) StatDateFileInfo {
 	return stat
 }
 
+// 自动检测并修复本地与集群中其他节点之间的数据不一致问题
 func (c *Server) AutoRepair(forceRepair bool) {
+	// 加锁防止重复修复导致的数据竞争问题
 	if c.lockMap.IsLock("AutoRepair") {
 		log.Warn("Lock AutoRepair")
 		return
@@ -274,12 +279,15 @@ func (c *Server) RepairFileInfo(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(c.util.JsonEncodePretty(result)))
 }
 
+// 统计信息修复
 func (c *Server) RepairStatWeb(w http.ResponseWriter, r *http.Request) {
 	var (
 		result JsonResult
 		date   string
 		inner  string
 	)
+
+	//鉴权与校验
 	if !c.IsPeer(r) {
 		result.Message = c.GetClusterNotPermitMessage(r)
 		w.Write([]byte(c.util.JsonEncodePretty(result)))
@@ -295,6 +303,8 @@ func (c *Server) RepairStatWeb(w http.ResponseWriter, r *http.Request) {
 	if date == "" || len(date) != 8 {
 		date = c.util.GetToDay()
 	}
+
+	// 向其他节点广播修复请求
 	if inner != "1" {
 		for _, peer := range Config().Peers {
 			req := httplib.Post(peer + c.getRequestURI("repair_stat"))

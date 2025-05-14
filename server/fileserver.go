@@ -29,6 +29,8 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// FileInfo 文件元信息
+// 1.upload 返回需要提取里面的信息
 type FileInfo struct {
 	Name      string   `json:"name"`
 	ReName    string   `json:"rename"`
@@ -422,6 +424,7 @@ func (c *Server) postFileToPeer(fileInfo *FileInfo) {
 				continue
 			}
 		}
+		// 向peers节点发送文件信息
 		postURL = fmt.Sprintf("%s%s", peer, c.getRequestURI("syncfile_info"))
 		b := httplib.Post(postURL)
 		b.SetTimeout(time.Second*30, time.Second*30)
@@ -638,6 +641,7 @@ func (c *Server) GetRealIp(r *http.Request) string {
 	return client_ip
 }
 
+// 检查是否是peer节点
 func (c *Server) IsPeer(r *http.Request) bool {
 	var (
 		ip    string
@@ -909,6 +913,7 @@ func (c *Server) AppendToQueue(fileInfo *FileInfo) {
 }
 
 func (c *Server) AppendToDownloadQueue(fileInfo *FileInfo) {
+	// 流量控制，超过90%时适当休眠，让出goroutine
 	for (len(c.queueFromPeers) + CONST_QUEUE_SIZE/10) > CONST_QUEUE_SIZE {
 		time.Sleep(time.Millisecond * 50)
 	}
@@ -1005,6 +1010,8 @@ func (c *Server) ConsumerUpload() {
 	}
 }
 
+// CleanLogLevelDBByDate 从leveldb中删除指定date的过期数据
+// "2023-03-01_error_log_key1" -> "value1"
 func (c *Server) CleanLogLevelDBByDate(date string, filename string) {
 	defer func() {
 		if re := recover(); re != nil {
@@ -1022,6 +1029,7 @@ func (c *Server) CleanLogLevelDBByDate(date string, filename string) {
 	keys = mapset.NewSet()
 	keyPrefix = "%s_%s_"
 	keyPrefix = fmt.Sprintf(keyPrefix, date, filename)
+	// 创建迭代器 访问前缀为keyPrefix 的数据
 	iter := server.logDB.NewIterator(util.BytesPrefix([]byte(keyPrefix)), nil)
 	for iter.Next() {
 		keys.Add(string(iter.Value()))
@@ -1035,6 +1043,7 @@ func (c *Server) CleanLogLevelDBByDate(date string, filename string) {
 	}
 }
 
+// CleanAndBackUp 每隔6h 执行一次清理
 func (c *Server) CleanAndBackUp() {
 	Clean := func() {
 		var (
@@ -1088,6 +1097,7 @@ func (c *Server) LoadFileInfoByDate(date string, filename string) (mapset.Set, e
 	return fileInfos, nil
 }
 
+// LoadQueueSendToPeer 加载当天的队列文件内容，并添加到下载队列
 func (c *Server) LoadQueueSendToPeer() {
 	if queue, err := c.LoadFileInfoByDate(c.util.GetToDay(), CONST_Md5_QUEUE_FILE_NAME); err != nil {
 		log.Error(err)
@@ -1121,6 +1131,7 @@ func (c *Server) CheckClusterStatus() {
 			req = httplib.Get(fmt.Sprintf("%s%s", peer, c.getRequestURI("status")))
 			req.SetTimeout(time.Second*5, time.Second*5)
 			err = req.ToJSON(&status)
+			// 检测到状态异常 or ToJson错误
 			if err != nil || status.Status != "ok" {
 				for _, to := range Config().AlarmReceivers {
 					subject = "fastdfs server error"
@@ -1133,6 +1144,7 @@ func (c *Server) CheckClusterStatus() {
 						log.Error(err)
 					}
 				}
+				// 报警信息传到指定接口url
 				if Config().AlarmUrl != "" {
 					req = httplib.Post(Config().AlarmUrl)
 					req.SetTimeout(time.Second*10, time.Second*10)
@@ -1145,10 +1157,12 @@ func (c *Server) CheckClusterStatus() {
 				log.Error(err)
 			} else {
 				var statusMap map[string]interface{}
+				// interface{} to []byte
 				if data, err = json.Marshal(status.Data); err != nil {
 					log.Error(err)
 					return
 				}
+				// []byte to map[string]interface
 				if err = json.Unmarshal(data, &statusMap); err != nil {
 					log.Error(err)
 				}

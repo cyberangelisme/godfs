@@ -28,8 +28,8 @@ func (c *Server) initRouter() {
 	mux.HandleFunc(fmt.Sprintf("%s/get_file_info", groupRoute), c.GetFileInfo)
 	mux.HandleFunc(fmt.Sprintf("%s/sync", groupRoute), c.Sync)
 	mux.HandleFunc(fmt.Sprintf("%s/stat", groupRoute), c.Stat)
-	mux.HandleFunc(fmt.Sprintf("%s/repair_stat", groupRoute), c.RepairStatWeb)
-	mux.HandleFunc(fmt.Sprintf("%s/status", groupRoute), c.Status)
+	mux.HandleFunc(fmt.Sprintf("%s/repair_stat", groupRoute), c.RepairStatWeb) //修复统计数据
+	mux.HandleFunc(fmt.Sprintf("%s/status", groupRoute), c.Status)             //查看文件系统状态
 	mux.HandleFunc(fmt.Sprintf("%s/repair", groupRoute), c.Repair)
 	mux.HandleFunc(fmt.Sprintf("%s/report", groupRoute), c.Report)
 	mux.HandleFunc(fmt.Sprintf("%s/backup", groupRoute), c.BackUp)

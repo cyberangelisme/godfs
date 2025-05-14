@@ -90,6 +90,8 @@ func (c *Server) Upload(w http.ResponseWriter, r *http.Request) {
 		c.upload(w, r)
 		return
 	}
+
+	// 对请求的文件进行临时文件保存，并加入队列等待后续处理
 	folder = STORE_DIR + "/_tmp/" + time.Now().Format("20060102")
 	if !c.util.FileExists(folder) {
 		if err = os.MkdirAll(folder, 0777); err != nil {
@@ -212,7 +214,7 @@ func (c *Server) upload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	result.Status = "fail"
-
+	// 秒传的MD5校验
 	if r.Method == http.MethodPost {
 		md5sum = r.FormValue("md5")
 		fileName = r.FormValue("filename")
@@ -334,6 +336,7 @@ func (c *Server) upload(w http.ResponseWriter, r *http.Request) {
 				log.Error(err)
 				result.Message = err.Error()
 				w.Write([]byte(c.util.JsonEncodePretty(result)))
+				fmt.Println(result)
 				return
 			}
 		}
@@ -371,6 +374,8 @@ func (c *Server) upload(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(c.util.JsonEncodePretty(result)))
 			return
 		}
+
+		//查库校验MD5值
 		if v, _ := c.GetFileInfoFromLevelDB(md5sum); v != nil && v.Md5 != "" {
 			fileResult = c.BuildFileResult(v, r)
 			result.Data = fileResult

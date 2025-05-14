@@ -11,6 +11,8 @@ type Mail struct {
 	Host     string `json:"host"`
 }
 
+// SendToMail smtp 发送邮件
+// use : 给管理员发送系统异常的邮件
 func (c *Server) SendToMail(to, subject, body, mailtype string) error {
 	host := Config().Mail.Host
 	user := Config().Mail.User

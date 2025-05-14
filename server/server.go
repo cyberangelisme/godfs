@@ -195,9 +195,11 @@ func (c *Server) Start() {
 			//c.util.RemoveEmptyDir(STORE_DIR)
 		}
 	}()
-	go c.CleanAndBackUp()
-	go c.CheckClusterStatus()
+	go c.CleanAndBackUp()     //定期清理老旧的数据
+	go c.CheckClusterStatus() //定期检测集群状态
 	go c.LoadQueueSendToPeer()
+
+	// 四个消费队列进程，通过之前handler加入队列的请求，由peers分布式节点进行消费，尤其是Upload和Download 需要并行化多worker处理
 	go c.ConsumerPostToPeer()
 	go c.ConsumerLog()
 	go c.ConsumerDownLoad()

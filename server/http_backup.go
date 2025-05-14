@@ -12,6 +12,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// 按指定日期将 LevelDB 中的文件元信息导出为文件。
 func (c *Server) BackUpMetaDataByDate(date string) {
 	defer func() {
 		if re := recover(); re != nil {
@@ -95,6 +96,7 @@ func (c *Server) BackUpMetaDataByDate(date string) {
 	}
 }
 
+// 提供 HTTP 接口，对外暴露接口，支持本地和集群调用。
 func (c *Server) BackUp(w http.ResponseWriter, r *http.Request) {
 	var (
 		err    error
