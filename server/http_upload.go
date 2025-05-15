@@ -496,6 +496,7 @@ func (c *Server) SaveUploadFile(file multipart.File, header *multipart.FileHeade
 	return fileInfo, nil
 }
 
+// 小文件合并
 func (c *Server) SaveSmallFile(fileInfo *FileInfo) error {
 	var (
 		err      error
@@ -533,6 +534,7 @@ func (c *Server) SaveSmallFile(fileInfo *FileInfo) error {
 			return err
 		}
 		defer desFile.Close()
+		// 文件指针指向内容末尾
 		fileInfo.OffSet, err = desFile.Seek(0, 2)
 		if _, err = desFile.Write([]byte("1")); err != nil {
 			//first byte set 1

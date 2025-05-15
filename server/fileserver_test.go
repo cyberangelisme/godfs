@@ -73,11 +73,14 @@ func uploadContinueBig(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	// upload 对象封装了文件内容、大小等信息
 	upload, err := tus.NewUploadFromFile(f)
 	if err != nil {
 		t.Error(err)
 		return
 	}
+
+	// uploader 上传器，
 	uploader, err := client.CreateUpload(upload)
 	if err != nil {
 		t.Error(err)
@@ -145,9 +148,9 @@ func testConfig(t *testing.T) {
 		cfgStr     string
 		result     string
 		jsonResult JsonResult
-		key string
+		key        string
 	)
-	key=Config().AdminKey
+	key = Config().AdminKey
 	req := httplib.Get(endPoint + "/reload?action=get&key=" + key)
 	req.SetTimeout(time.Second*2, time.Second*3)
 	err = req.ToJSON(&jsonResult)

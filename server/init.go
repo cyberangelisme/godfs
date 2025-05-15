@@ -21,6 +21,11 @@ import (
 	"github.com/sjqzhang/tusd/filestore"
 )
 
+/*
+tus server服务器初始化
+这段代码是一个 tus 文件上传服务器的初始化函数 ，用于在 Go 项目中搭建一个支持断点续传（resumable upload）的 tus 协议服务端。
+它基于 tusd 和 filestore 实现了一个完整的文件上传处理逻辑，并结合了自定义功能如日志管理、文件存储路径控制、上传完成回调等。
+*/
 func (c *Server) initTus() {
 	var (
 		err     error
@@ -37,6 +42,8 @@ func (c *Server) initTus() {
 		log.Error(err)
 		panic("initTus")
 	}
+
+	// 后台go routine 定期检查并轮转（备份+清空），防止tus 日志文件过大
 	go func() {
 		for {
 			if fi, err := fileLog.Stat(); err != nil {
@@ -58,9 +65,12 @@ func (c *Server) initTus() {
 	if Config().SupportGroupManage {
 		bigDir = fmt.Sprintf("/%s%s", Config().Group, CONST_BIG_UPLOAD_PATH_SUFFIX)
 	}
+	// composer 用于添加扩展配置
 	composer := tusd.NewStoreComposer()
 	composer.UsesTerminater = true
 	// support raw tus upload and download
+	// 实现 tus 的 读取接口 ，使得客户端可以通过 URL 下载已上传的文件。
+	// 根据 tus 文件Id 找到对应的 文件信息 并提供一个io.Reader 以供下载
 	store.GetReaderExt = func(id string) (io.Reader, error) {
 		var (
 			offset int64
@@ -99,6 +109,7 @@ func (c *Server) initTus() {
 				if buffer, err = c.util.ReadFileByOffSet(ps[0], offset, length); err != nil {
 					return nil, err
 				}
+
 				if buffer[0] == '1' {
 					bufferReader := bytes.NewBuffer(buffer[1:])
 					return bufferReader, nil
@@ -112,12 +123,15 @@ func (c *Server) initTus() {
 		}
 	}
 	store.UseIn(composer)
+	//创建 tus HTTP handler 前，为 tus 添加一些中间件或扩展功能
 	SetupPreHooks := func(composer *tusd.StoreComposer) {
 		composer.UseCore(hookDataStore{
 			DataStore: composer.Core,
 		})
 	}
 	SetupPreHooks(composer)
+
+	//根据配置初始化一个符合 tus 协议 的 HTTP handler
 	h, err := tusd.NewHandler(tusd.Config{
 		Logger:                  l,
 		BasePath:                bigDir,
@@ -125,9 +139,12 @@ func (c *Server) initTus() {
 		NotifyCompleteUploads:   true,
 		RespectForwardedHeaders: true,
 	})
+
+	//
 	notify := func(h *tusd.Handler) {
 		for {
 			select {
+			//  监听上传完成事件，并传递关于上传的fileinfo
 			case info := <-h.CompleteUploads:
 				callBack := func(info tusd.FileInfo, fileInfo *FileInfo) {
 					if callback_url, ok := info.MetaData["callback_url"]; ok {
@@ -232,6 +249,7 @@ func (c *Server) initTus() {
 			}
 		}
 	}
+	// 添加一个限制文件类型的中间件
 	h.AddMiddleWare(func() http.HandlerFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost {
@@ -249,6 +267,7 @@ func (c *Server) initTus() {
 		log.Error(err)
 	}
 	//http.Handle(bigDir, http.StripPrefix(bigDir, h))
+	// 将tus handler 注册到http路由中，使得客户端可见，并通过路由访问tus server
 	mux.Handle(bigDir, http.StripPrefix(bigDir, h))
 }
 
