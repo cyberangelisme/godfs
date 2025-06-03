@@ -33,14 +33,14 @@ import (
 // 1.upload 返回需要提取里面的信息
 type FileInfo struct {
 	Name      string   `json:"name"`
-	ReName    string   `json:"rename"`
-	Path      string   `json:"path"`
-	Md5       string   `json:"md5"`
-	Size      int64    `json:"size"`
-	Peers     []string `json:"peers"`
-	Scene     string   `json:"scene"`
-	TimeStamp int64    `json:"timeStamp"`
-	OffSet    int64    `json:"offset"`
+	ReName    string   `json:"rename"`    //逻辑重命名，相当于别称
+	Path      string   `json:"path"`      //存储路径
+	Md5       string   `json:"md5"`       //md5值
+	Size      int64    `json:"size"`      //文件大小
+	Peers     []string `json:"peers"`     //哪些对等节点上存储了
+	Scene     string   `json:"scene"`     //场景
+	TimeStamp int64    `json:"timeStamp"` //时间戳
+	OffSet    int64    `json:"offset"`    //偏移量
 	retry     int
 	op        string
 }
@@ -641,7 +641,9 @@ func (c *Server) GetRealIp(r *http.Request) string {
 	return client_ip
 }
 
-// 检查是否是peer节点
+// 检查是否是peer节点：
+// 是否为公网IP，是则返回false，说明是外部请求。
+// 对内网IP再采取白名单制。
 func (c *Server) IsPeer(r *http.Request) bool {
 	var (
 		ip    string
@@ -746,12 +748,19 @@ func (c *Server) GetMd5sMapByDate(date string, filename string) (*goutil.CommonM
 	return result, nil
 }
 
+// 根据日期和文件名从数据库中检索 MD5 值
 func (c *Server) GetMd5sByDate(date string, filename string) (mapset.Set, error) {
 	var (
 		keyPrefix string
 		md5set    mapset.Set
 		keys      []string
 	)
+	// 用mapset 去重重复的md5值
+	// 因为虽然leveldb key 不重复but提取的md5可能重复
+	// "20240318_upload_abc123"
+	// "20240318_download_abc123"
+	// "20240319_upload_abc123"
+
 	md5set = mapset.NewSet()
 	keyPrefix = "%s_%s_"
 	keyPrefix = fmt.Sprintf(keyPrefix, date, filename)
@@ -766,6 +775,7 @@ func (c *Server) GetMd5sByDate(date string, filename string) (mapset.Set, error)
 	return md5set, nil
 }
 
+// /<group>/<action> or /<action> return
 func (c *Server) getRequestURI(action string) string {
 	var (
 		uri string
@@ -839,6 +849,16 @@ func (c *Server) BuildFileResult(fileInfo *FileInfo, r *http.Request) FileResult
 	return fileResult
 }
 
+/*
+生成包含每日统计和总计的列表
+return like:
+
+	[]StatDateFileInfo{
+	    {Date: "20231001", TotalSize: 1000, FileCount: 5},
+	    {Date: "20231002", TotalSize: 2000, FileCount: 10},
+	    {Date: "all", TotalSize: 3000, FileCount: 15},
+	}
+*/
 func (c *Server) GetStat() []StatDateFileInfo {
 	var (
 		min   int64
@@ -1180,6 +1200,7 @@ func (c *Server) CheckClusterStatus() {
 		}
 	}
 	check()
+	// heartbeat
 	go func() {
 		for {
 			time.Sleep(time.Minute * 10)

@@ -156,7 +156,9 @@ func (c *Server) Stat(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	inner = r.FormValue("inner")
 	echart = r.FormValue("echart")
+	// 获取每日文件统计信息
 	data := c.GetStat()
+
 	result.Status = "ok"
 	result.Data = data
 	if echart == "1" {
@@ -206,6 +208,8 @@ func (c *Server) BenchMark(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(time.Since(t).String())
 }
 
+// md5与path二选一，获取文件元信息：
+// md5 是去查leveldb 获取fileInfo
 func (c *Server) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 	var (
 		fpath    string
@@ -222,10 +226,12 @@ func (c *Server) GetFileInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	md5sum = r.FormValue("md5")
+	// 从path 获取MD5
 	if fpath != "" {
 		fpath = strings.Replace(fpath, "/"+Config().Group+"/", STORE_DIR_NAME+"/", 1)
 		md5sum = c.util.MD5(fpath)
 	}
+	// 根据MD5 值从levelDB 中获取文件元信息
 	if fileInfo, err = c.GetFileInfoFromLevelDB(md5sum); err != nil {
 		log.Error(err)
 		result.Message = err.Error()
@@ -273,6 +279,8 @@ func (c *Server) GetClusterNotPermitMessage(r *http.Request) string {
 	message = fmt.Sprintf(CONST_MESSAGE_CLUSTER_IP, c.util.GetClientIp(r))
 	return message
 }
+
+// 获取指定日期的MD5值
 func (c *Server) GetMd5sForWeb(w http.ResponseWriter, r *http.Request) {
 	var (
 		date   string
@@ -286,6 +294,7 @@ func (c *Server) GetMd5sForWeb(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	date = r.FormValue("date")
+	//根据日期和文件名从数据库中检索 MD5 值
 	if result, err = c.GetMd5sByDate(date, CONST_FILE_Md5_FILE_NAME); err != nil {
 		log.Error(err)
 		return
@@ -336,8 +345,8 @@ func (c *Server) Status(w http.ResponseWriter, r *http.Request) {
 	runtime.ReadMemStats(memStat)
 	today = c.util.GetToDay()
 	sts = make(map[string]interface{})
-	sts["Fs.QueueFromPeers"] = len(c.queueFromPeers)
-	sts["Fs.QueueToPeers"] = len(c.queueToPeers)
+	sts["Fs.QueueFromPeers"] = len(c.queueFromPeers) // 从其他节点接收到的文件队列长度。这个值反映了当前节点处理其他节点的请求负载。
+	sts["Fs.QueueToPeers"] = len(c.queueToPeers)     // 需要发送到其他节点的文件队列长度。
 	sts["Fs.QueueFileLog"] = len(c.queueFileLog)
 	for _, k := range []string{CONST_FILE_Md5_FILE_NAME, CONST_Md5_ERROR_FILE_NAME, CONST_Md5_QUEUE_FILE_NAME} {
 		k2 := fmt.Sprintf("%s_%s", today, k)
@@ -354,13 +363,15 @@ func (c *Server) Status(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	sts["Fs.AutoRepair"] = Config().AutoRepair
-	sts["Fs.QueueUpload"] = len(c.queueUpload)
+	sts["Fs.AutoRepair"] = Config().AutoRepair // config：自动修复功能
+	sts["Fs.QueueUpload"] = len(c.queueUpload) //等待上传的文件队列长度。该值直接体现待处理的上传任务量。
 	sts["Fs.RefreshInterval"] = Config().RefreshInterval
 	sts["Fs.Peers"] = Config().Peers
 	sts["Fs.Local"] = c.host
 	sts["Fs.FileStats"] = c.GetStat()
 	sts["Fs.ShowDir"] = Config().ShowDir
+
+	// 系统资源监控
 	sts["Sys.NumGoroutine"] = runtime.NumGoroutine()
 	sts["Sys.NumCpu"] = runtime.NumCPU()
 	sts["Sys.Alloc"] = memStat.Alloc
@@ -552,7 +563,17 @@ func (c *Server) Index(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Notice: performance is poor,just for low capacity,but low memory , if you want to high performance,use searchMap for search,but memory ....
+/*
+Notice: performance is poor,just for low capacity,but low memory , if you want to high performance,use searchMap for search,but memory ....
+input:GET /search?kw= filename
+output:
+
+	type JsonResult struct {
+		Message string      `json:"message"`
+		Status  string      `json:"status"`		-> "ok"
+		Data    interface{} `json:"data"`		-> []FileInfo
+	}
+*/
 func (c *Server) Search(w http.ResponseWriter, r *http.Request) {
 	var (
 		result    JsonResult
@@ -568,6 +589,7 @@ func (c *Server) Search(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(c.util.JsonEncodePretty(result)))
 		return
 	}
+	// leveldb 中迭代器去找namew = kw  的file
 	iter := c.ldb.NewIterator(nil, nil)
 	for iter.Next() {
 		var fileInfo FileInfo
@@ -596,12 +618,14 @@ func (c *Server) Search(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(c.util.JsonEncodePretty(result)))
 }
 
+// 内部同步接口
 func (c *Server) Sync(w http.ResponseWriter, r *http.Request) {
 	var (
 		result JsonResult
 	)
 	r.ParseForm()
 	result.Status = "fail"
+	// 检测请求是否来自集群内部其他节点
 	if !c.IsPeer(r) {
 		result.Message = "client must be in cluster"
 		w.Write([]byte(c.util.JsonEncodePretty(result)))
@@ -617,6 +641,7 @@ func (c *Server) Sync(w http.ResponseWriter, r *http.Request) {
 	if force == "1" {
 		isForceUpload = true
 	}
+	// 外部请求时，内部对其余peers转发一遍内部请求，避免重复执行
 	if inner != "1" {
 		for _, peer := range Config().Peers {
 			req := httplib.Post(peer + c.getRequestURI("sync"))
@@ -628,6 +653,8 @@ func (c *Server) Sync(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// 本机的处理
 	if date == "" {
 		result.Message = "require paramete date &force , ?date=20181230"
 		w.Write([]byte(c.util.JsonEncodePretty(result)))

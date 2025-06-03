@@ -207,6 +207,7 @@ func (c *Server) AutoRepair(forceRepair bool) {
 			req := httplib.Post(fmt.Sprintf("%s%s", peer, c.getRequestURI("stat")))
 			req.Param("inner", "1")
 			req.SetTimeout(time.Second*5, time.Second*15)
+			// 请求发送
 			if err = req.ToJSON(&dateStats); err != nil {
 				log.Error(err)
 				continue
@@ -320,6 +321,7 @@ func (c *Server) RepairStatWeb(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(c.util.JsonEncodePretty(result)))
 }
 
+// handler ，目的是启动一个修复流程
 func (c *Server) Repair(w http.ResponseWriter, r *http.Request) {
 	var (
 		force       string

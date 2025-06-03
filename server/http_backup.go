@@ -12,7 +12,17 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-// 按指定日期将 LevelDB 中的文件元信息导出为文件。
+// 创建备份文件：为指定日期目录下的元数据创建两个备份文件，分别是 meta.data 和一个日志文件
+/*
+创建备份文件：生成 meta.data 和日志文件。
+文件路径：/data/backup/2023-10-05/meta.data 和 /data/backup/2023-10-05/fileMd5.log
+遍历数据库条目，反序列化 fileInfo 数据。
+写入 meta.data 文件：
+第一条记录：d41d8cd98f00b204e9800998ecf8427e {"Name":"example.txt", ...}
+第二条记录（MD5 based on path + name）：md5_of_/data/files/example.txt {"Name":"example.txt", ...}
+写入日志文件：
+记录内容：d41d8cd98f00b204e9800998ecf8427e|1024|1633423423|/data/files/example.txt
+*/
 func (c *Server) BackUpMetaDataByDate(date string) {
 	defer func() {
 		if re := recover(); re != nil {
@@ -113,6 +123,7 @@ func (c *Server) BackUp(w http.ResponseWriter, r *http.Request) {
 		date = c.util.GetToDay()
 	}
 	if c.IsPeer(r) {
+		// 集群内部调用
 		if inner != "1" {
 			for _, peer := range Config().Peers {
 				backUp := func(peer string, date string) {
@@ -128,6 +139,7 @@ func (c *Server) BackUp(w http.ResponseWriter, r *http.Request) {
 				go backUp(peer, date)
 			}
 		}
+		// 本地元数据备份
 		go c.BackUpMetaDataByDate(date)
 		result.Message = "back job start..."
 		w.Write([]byte(c.util.JsonEncodePretty(result)))

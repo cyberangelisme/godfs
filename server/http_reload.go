@@ -7,6 +7,7 @@ import (
 	log "github.com/sjqzhang/seelog"
 )
 
+// 重新加载/update 服务器全局配置
 func (c *Server) Reload(w http.ResponseWriter, r *http.Request) {
 	var (
 		err     error

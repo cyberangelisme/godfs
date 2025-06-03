@@ -75,14 +75,16 @@ func (c *Server) RemoveFile(w http.ResponseWriter, r *http.Request) {
 		c.NotPermit(w, r)
 		return
 	}
+	// 如果传参只有fpath 重新获取一下md5
 	if fpath != "" && md5sum == "" {
-		if Config().Group!="" && Config().SupportGroupManage {
+		if Config().Group != "" && Config().SupportGroupManage {
 			fpath = strings.Replace(fpath, "/"+Config().Group+"/", STORE_DIR_NAME+"/", 1)
 		} else {
 			fpath = strings.Replace(fpath, "/", STORE_DIR_NAME+"/", 1)
 		}
 		md5sum = c.util.MD5(fpath)
 	}
+	// 外部请求
 	if inner != "1" {
 		for _, peer := range Config().Peers {
 			delFile := func(peer string, md5sum string, fileInfo *FileInfo) {
@@ -98,16 +100,19 @@ func (c *Server) RemoveFile(w http.ResponseWriter, r *http.Request) {
 			go delFile(peer, md5sum, fileInfo)
 		}
 	}
+	// 验证md5 长度
 	if len(md5sum) < 32 {
 		result.Message = "md5 unvalid"
 		w.Write([]byte(c.util.JsonEncodePretty(result)))
 		return
 	}
+	// 拿md5 获取fileInfo
 	if fileInfo, err = c.GetFileInfoFromLevelDB(md5sum); err != nil {
 		result.Message = err.Error()
 		w.Write([]byte(c.util.JsonEncodePretty(result)))
 		return
 	}
+	// 如果是小文件，拒绝删除
 	if fileInfo.OffSet >= 0 {
 		result.Message = "small file delete not support"
 		w.Write([]byte(c.util.JsonEncodePretty(result)))

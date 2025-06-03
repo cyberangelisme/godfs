@@ -557,6 +557,7 @@ func (c *Server) SaveSmallFile(fileInfo *FileInfo) error {
 	return nil
 }
 
+// 请求返回report html
 func (c *Server) Report(w http.ResponseWriter, r *http.Request) {
 	var (
 		reportFileName string
