@@ -71,7 +71,7 @@ func (c *Server) initRouterByGin(r *gin.Engine) {
 	}
 	// 需要 JWT 认证的路由
 	authGroup := r.Group(groupRoute)
-	authGroup.Use(middleware.JWTAuth()) // 添加 JWT 中间件
+	authGroup.Use(middleware.LoggerToFile()) // 添加 JWT 中间件,登录日志中间件
 	{
 		authGroup.POST("/check_files_exist", Adapt(c.CheckFilesExist))
 		authGroup.POST("/check_file_exist", Adapt(c.CheckFileExist))
@@ -97,11 +97,11 @@ func (c *Server) initRouterByGin(r *gin.Engine) {
 		authGroup.GET("/gen_google_code", Adapt(c.GenGoogleCode))
 	}
 
-	// 静态文件服务
-	staticHandler := http.StripPrefix(groupRoute+"/static/", http.FileServer(http.Dir("./static")))
-	r.GET(groupRoute+"/static/*filepath", Adapt(staticHandler.ServeHTTP))
-	// 兜底下载
-	r.Any("/"+Config().Group+"/*path", Adapt(c.Download))
+	// // 静态文件服务
+	// staticHandler := http.StripPrefix(groupRoute+"/static/", http.FileServer(http.Dir("./static")))
+	// r.GET(groupRoute+"/static/*filepath", Adapt(staticHandler.ServeHTTP))
+	// // 兜底下载
+	// r.Any("/"+Config().Group+"/*path", Adapt(c.Download))
 }
 
 // net/http 原始代码适配到 gin 中

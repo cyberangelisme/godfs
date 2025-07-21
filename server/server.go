@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/astaxie/beego/httplib"
+	"github.com/gin-gonic/gin"
 	"github.com/sjqzhang/goutil"
 	log "github.com/sjqzhang/seelog"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -186,6 +187,7 @@ func NewServer() *Server {
 	return server
 }
 
+// 可切换为gin or net/http
 func (c *Server) Start() {
 	go func() {
 		for {
@@ -233,7 +235,9 @@ func (c *Server) Start() {
 		}
 	}()
 
-	c.initRouter()
+	//c.initRouter()
+	r := gin.Default()
+	c.initRouterByGin(r)
 
 	//if Config().Proxies != nil && len(Config().Proxies) > 0 {
 	//	for _, proxy := range Config().Proxies {
@@ -261,7 +265,7 @@ func (c *Server) Start() {
 	} else {
 		srv := &http.Server{
 			Addr:              Config().Addr,
-			Handler:           new(HttpHandler),
+			Handler:           r, // r or new(HttpHandler)
 			ReadTimeout:       time.Duration(Config().ReadTimeout) * time.Second,
 			ReadHeaderTimeout: time.Duration(Config().ReadHeaderTimeout) * time.Second,
 			WriteTimeout:      time.Duration(Config().WriteTimeout) * time.Second,
