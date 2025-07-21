@@ -3,6 +3,9 @@ package server
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sjqzhang/go-fastdfs/middleware"
 )
 
 var mux *http.ServeMux
@@ -45,4 +48,65 @@ func (c *Server) initRouter() {
 	mux.HandleFunc(fmt.Sprintf("%s/gen_google_code", groupRoute), c.GenGoogleCode)
 	mux.Handle(fmt.Sprintf("%s/static/", groupRoute), http.StripPrefix(fmt.Sprintf("%s/static/", groupRoute), http.FileServer(http.Dir("./static"))))
 	mux.HandleFunc("/"+Config().Group+"/", c.Download)
+}
+func (c *Server) initRouterByGin(r *gin.Engine) {
+	groupRoute := ""
+	if Config().SupportGroupManage && Config().Group != "" {
+		groupRoute = "/" + Config().Group
+	}
+
+	uploadPage := "upload.html"
+
+	// 全局中间件
+	r.Use(middleware.LoggerToFile())
+
+	// 不需要 JWT 认证的路由
+	if groupRoute == "" {
+		r.GET("/", Adapt(c.Download))
+		r.GET("/"+uploadPage, Adapt(c.Index))
+	} else {
+		r.GET("/", Adapt(c.Download))
+		r.GET(groupRoute, Adapt(c.Download))
+		r.GET(groupRoute+"/"+uploadPage, Adapt(c.Index))
+	}
+	// 需要 JWT 认证的路由
+	authGroup := r.Group(groupRoute)
+	authGroup.Use(middleware.JWTAuth()) // 添加 JWT 中间件
+	{
+		authGroup.POST("/check_files_exist", Adapt(c.CheckFilesExist))
+		authGroup.POST("/check_file_exist", Adapt(c.CheckFileExist))
+		authGroup.POST("/upload", Adapt(c.Upload))
+		authGroup.POST("/delete", Adapt(c.RemoveFile))
+		authGroup.POST("/get_file_info", Adapt(c.GetFileInfo))
+		authGroup.POST("/sync", Adapt(c.Sync))
+		authGroup.GET("/stat", Adapt(c.Stat))
+		authGroup.GET("/repair_stat", Adapt(c.RepairStatWeb))
+		authGroup.GET("/status", Adapt(c.Status))
+		authGroup.POST("/repair", Adapt(c.Repair))
+		authGroup.GET("/report", Adapt(c.Report))
+		authGroup.GET("/backup", Adapt(c.BackUp))
+		authGroup.POST("/search", Adapt(c.Search))
+		authGroup.POST("/list_dir", Adapt(c.ListDir))
+		authGroup.POST("/remove_empty_dir", Adapt(c.RemoveEmptyDir))
+		authGroup.POST("/repair_fileinfo", Adapt(c.RepairFileInfo))
+		authGroup.GET("/reload", Adapt(c.Reload))
+		authGroup.POST("/syncfile_info", Adapt(c.SyncFileInfo))
+		authGroup.GET("/get_md5s_by_date", Adapt(c.GetMd5sForWeb))
+		authGroup.POST("/receive_md5s", Adapt(c.ReceiveMd5s))
+		authGroup.GET("/gen_google_secret", Adapt(c.GenGoogleSecret))
+		authGroup.GET("/gen_google_code", Adapt(c.GenGoogleCode))
+	}
+
+	// 静态文件服务
+	staticHandler := http.StripPrefix(groupRoute+"/static/", http.FileServer(http.Dir("./static")))
+	r.GET(groupRoute+"/static/*filepath", Adapt(staticHandler.ServeHTTP))
+	// 兜底下载
+	r.Any("/"+Config().Group+"/*path", Adapt(c.Download))
+}
+
+// net/http 原始代码适配到 gin 中
+func Adapt(fn http.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fn(c.Writer, c.Request)
+	}
 }

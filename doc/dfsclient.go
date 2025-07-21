@@ -144,11 +144,13 @@ func bigUpload(filePath string) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	// 创建上传文件实例
 	upload, err := tus.NewUploadFromFile(f)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	// 基于客户端的上传实例
 	uploader, err := client.CreateOrResumeUpload(upload)
 	if err != nil {
 		fmt.Println(err)
@@ -156,6 +158,7 @@ func bigUpload(filePath string) {
 	}
 	url := uploader.Url()
 	err = uploader.Upload()
+
 	fmt.Println(url, filePath)
 
 }

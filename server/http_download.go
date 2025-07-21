@@ -14,6 +14,7 @@ import (
 	log "github.com/sjqzhang/seelog"
 )
 
+// 监听的download消费进程，worker数量个
 func (c *Server) ConsumerDownLoad() {
 	ConsumerFunc := func() {
 		for {
@@ -27,6 +28,7 @@ func (c *Server) ConsumerDownLoad() {
 					log.Warn("sync error with 127.0.0.1", fileInfo)
 					continue
 				}
+				//非本地节点
 				if peer != c.host {
 					c.DownloadFromPeer(peer, &fileInfo)
 					break
@@ -39,6 +41,15 @@ func (c *Server) ConsumerDownLoad() {
 	}
 }
 
+// 该函数 [DownloadFromPeer](file:///Users/hanser/Code/CodeGo/godfs/server/http_download.go#L43-L198) 的主要功能是从指定的对等节点（peer）下载文件，并根据配置和文件状态进行完整性校验、重试控制、去重判断以及并发控制。逻辑较复杂，分点解释如下：
+// 1. **只读模式或重试次数超限则终止下载**。
+// 2. **设置目标文件名与路径**，支持重命名及偏移下载。
+// 3. **检查本地是否已存在相同文件（通过MD5或文件路径）**，若存在则跳过下载。
+// 4. **时间戳比较机制**：若本地文件更新，则反向推送至源节点。
+// 5. **构造下载URL并发起HTTP请求**，支持分组管理。 http ：<peer>/<group>/<path>/<filename>
+// 6. **临时文件下载并校验大小与完整性**，失败则加入下载队列重试。
+// 7. **完整下载或偏移小文件写入处理**，成功后保存元数据到LevelDB。
+// 8. **使用锁机制防止多协程重复下载同一文件**。
 func (c *Server) DownloadFromPeer(peer string, fileInfo *FileInfo) {
 	var (
 		err         error

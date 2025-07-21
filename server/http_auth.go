@@ -36,6 +36,7 @@ func (c *Server) CheckAuth(w http.ResponseWriter, r *http.Request) bool {
 	}
 	result, err = req.String()
 	result = strings.TrimSpace(result)
+	//json判断
 	if strings.HasPrefix(result, "{") && strings.HasSuffix(result, "}") {
 		if err = json.Unmarshal([]byte(result), &jsonResult); err != nil {
 			log.Error(err)
